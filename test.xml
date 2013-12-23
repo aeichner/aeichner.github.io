@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<LineSymbolizer xmlns="http://schemas.opengis.net/se" xmlns:xlink="xlink">
+	<Name>Foo</Name>
+	<Description>
+		<Title>Test</Title>
+		<Abstract>Test symbolizer for line styles</Abstract>
+	</Description>
+	<BaseSymbolizer>
+		<OnlineResource xlink:type="simple" xlink:href="../foo.xml" />
+	</BaseSymbolizer>
+	<Stroke>
+		<GraphicStroke>
+			<Graphic>
+				<Mark>
+					<WellKnownName>star</WellKnownName>
+					<Fill>
+						<SvgParameter name="fill">#ff0000</SvgParameter>
+					</Fill>
+				</Mark>
+				<Size>8.0</Size>
+			</Graphic>
+		</GraphicStroke>
+	</Stroke>
+	<PerpendicularOffset>5</PerpendicularOffset>
+</LineSymbolizer>
