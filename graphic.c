@@ -20,7 +20,7 @@ struct xml_schema {
 
 */
 
-static const token_t _tokens[] = {
+static const token_t tokens[] = {
 	{0, 0, "LineSymbolizer"},
 	{0, 0, "BaseSymbolizer"},
 	{0, 0, "Description"},
@@ -35,10 +35,10 @@ static const token_t _tokens[] = {
 	{0, 0, "GraphicFill"},
 	{0, 0, "GraphicStroke"},
 	{0, 0, "SvgParameter"},
-	{2, 0, "expression"},
-	{1, 0, "Graphic"},
+	{0, 0, "InitialGap"}, // 17
+	{0, 0, "Graphic"},
 	{0, 0, "Gap"},
-	{0, 0, "InitialGap"}
+	{2, 0, "expression"}
 };
 
 /*
@@ -86,7 +86,7 @@ static const uint8_t token_list[] = {
 	9,
 	10,
 	11, 12, 13,
-	14,
+	17,
 	//
 	1, 2, 3, 5, 6,
 	//
@@ -96,7 +96,7 @@ static const uint8_t token_list[] = {
 	//
 	15,
 	15,
-	14,
+	17,
 	5,
 	//
 	7,
@@ -104,23 +104,21 @@ static const uint8_t token_list[] = {
 	//
 	//
 	//
-	16, 17,
+	16, 14,
 	13,
 	3, 5, 6,
 	5, 6,
-	14,
-	14,
+	17,
+	17,
 	16
 };
 
 static const index_t token_offset[] = {
-	0,
-	0,
-	1, 7, 7, 9, 10, 11, 14, 15, 15, 20, 20, 20, 24, 24, 24, 25, 26, 27, 28, 28, 29, 30, 30, 30, 30, 30, 32, 33, 36, 38, 39, 40, 41
+	0, 0, 1, 7, 7, 9, 10, 11, 14, 15, 15, 20, 20, 20, 24, 24, 24, 25, 26, 27, 28, 28, 29, 29, 29, 29, 29, 31, 32, 35, 37, 38, 39, 40
 };
 
 static const index_t token_length[] = {
-	0, 1, 6, 0, 2, 1, 1, 3, 1, 0, 5, 0, 0, 4, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 2, 1, 3, 2, 1, 1, 1, 0
+	0, 1, 6, 0, 2, 1,  1,  3,  1,  0,  5,  0,  0,  4,  0,  0,  1,  1,  1,  1,  0,  1,  0,  0,  0,  0,  2,  1,  3,  2,  1,  1,  1,  0
 };
 
 static const state_t target_list[] = {
@@ -164,15 +162,26 @@ static const index_t target_offset[] = {
 	  0,  2,  5, 13, 15, 19, 22, 25, 30, 33,
 	 35, 42, 44, 46, 52, 54, 56, 59, 62, 65,
 	 68, 70, 73, 75, 77, 79, 81, 85, 88, 93,
-	 97,100,103,106
+	 97,100,103,106, 0
 };
+
+static void dispatch(int trans, parser_ctx* ctx)
+{
+	switch(trans) {
+	case 60:
+		xmlTextReaderNext(ctx->rd);
+		break;
+	default: {}
+	}
+}
 
 xml_schema const test_schema = {
 	.start = 1,
-	.tokens = _tokens,
+	.tokens = tokens,
 	.token_list = token_list,
 	.token_offset = token_offset,
 	.token_length = token_length,
 	.target_list = target_list,
-	.target_offset = target_offset
+	.target_offset = target_offset,
+	.dispatch = dispatch
 };

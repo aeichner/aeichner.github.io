@@ -8,7 +8,7 @@ DEPENDS=.depend
 
 .PHONY: clean
 
-SRC=xmlparser.c graphic.c
+SRC=xmlparser.c linesymbolizer.c
 OBJS=$(SRC:%.c=%.o)
 
 all: test

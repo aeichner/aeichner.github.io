@@ -12,6 +12,8 @@ parse_xml(xmlTextReaderPtr rd, const xml_schema * schema)
 	uint8_t *token;
 	int len;
 	state_t *trans;
+	parser_ctx ctx = { rd };
+	const xmlChar *localname;
 
 read:
 	if (state == 0)
@@ -31,23 +33,24 @@ read:
 	switch (ev_type) {
 	case XML_READER_TYPE_ELEMENT:
 		fake_close = xmlTextReaderIsEmptyElement(rd);
+		localname = xmlTextReaderConstLocalName(rd);
 		++ trans; // skip CLOSE transition
 		token = schema->token_list + schema->token_offset[state];
 		len   = schema->token_length[state];
-		printf("OPEN '%s' ", xmlTextReaderConstLocalName(rd));
+		printf("OPEN '%s' ", localname);
 		while (len > 0) {
 			switch (schema->tokens[*token].type) {
 			case 0:
+//				printf("Testing '%s' for match with element name %s\n", schema->tokens[*token].localname, localname);
 				if (xmlStrcmp(BAD_CAST (schema->tokens[*token].localname),
-			        xmlTextReaderConstLocalName(rd)) == 0)
+			        localname) == 0)
 			        goto match;
 			    break;
 			case 1:
 				printf("Checking subgraph\n");
 				if (xmlStrcmp(BAD_CAST (schema->tokens[*token].localname),
-			        xmlTextReaderConstLocalName(rd)) == 0)
+			        localname) == 0)
 			    {
-			    	xmlTextReaderNext(rd);
 			    	goto match;
 			    }
 				break;
@@ -70,8 +73,9 @@ read:
 	default: goto read;
 	}
 
-	printf(" -> %d%s\n", *trans, (len == 0)? " (default)": "");
+	printf(" -> %d / %d%s\n", *trans, trans - schema->target_list, (len == 0)? " (default)": "");
 	state = *trans;
+	schema->dispatch(trans - schema->target_list, &ctx);
 	goto read;
 
 error:

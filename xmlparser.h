@@ -9,6 +9,10 @@ typedef uint8_t index_t;
 typedef struct xml_schema xml_schema;
 
 typedef struct {
+	xmlTextReaderPtr rd;
+} parser_ctx;
+
+typedef struct {
 	char type;
 	char ns;
 	char *localname;
@@ -25,6 +29,8 @@ struct xml_schema {
 
     state_t start;
     state_t first_final;
+
+    void (*dispatch)(int, parser_ctx*);
 };
 
 #endif /* _XML_PARSER_H_INCLUDED */
