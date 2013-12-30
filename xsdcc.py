@@ -121,7 +121,7 @@ class XSCompiler:
 					fsm = XMLFsm()
 					fsm.entry = State()
 					leave = State()
-					fsm.entry.setTransition(qname, leave)
+					fsm.entry.setTransition("%s%s" % ('!' if node.prop("abstract") == "true" else "", qname), leave)
 					fsm.makeFinal(leave)
 					return XMLFsm.particle(fsm, minOccurs, maxOccurs)
 
@@ -139,10 +139,8 @@ class XSCompiler:
 					typename = self.expandQName(node, node.prop("type"))
 					if not self.Decls[2].has_key(typename):
 						raise BaseException("Unknown type %s" % typename)
-					if self.Decls[2][typename] is None:
-						# a simple predefined type
-						return XMLFsm.empty()
-					content = self.createContentModel(self.Decls[2][typename], stack)
+					if self.Decls[2][typename] is not None:
+						content = self.createContentModel(self.Decls[2][typename], stack)
 				else:
 					for child in node.children:
 						if child.name in ("simpleType", "complexType"):
@@ -224,3 +222,4 @@ nfa = cc.createContentModel(cc.Decls[1]["{http://www.opengis.net/se}LineSymboliz
 #nfa.dump()
 dfa = nfa.determinize()
 dfa.dump()
+dfa.dump2()
