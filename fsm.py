@@ -185,6 +185,77 @@ class XMLFsm(object):
 #		print "  closure has length %d: %s / %s" % (len(states), [s.id for s in states], actions)
 		return states, actions
 
+	def dump2(self):
+		visited = set([self.entry])
+		inqueue = deque([self.entry])
+		outqueue = deque()
+		labels = dict()
+		substs = set()
+		id = 1
+		labelId = 0
+		while len(inqueue) > 0:
+			state = inqueue.popleft()
+			if state not in self.accepts:
+				state.id = id
+				id += 1
+				outqueue.append(state)
+
+			transitions = state.transitions
+			for label, targets in transitions.iteritems():
+				if not (label.startswith("/") or label.startswith('!')) and label not in labels:
+					labels[label] = labelId
+					labelId += 1
+				elif label.startswith('!'):
+					substs.add(label)
+				for target in targets:
+					if target not in visited:
+						inqueue.append(target)
+						visited.add(target)
+		for state in self.accepts:
+			state.id = id
+			id += 1
+			outqueue.append(state)
+		for label in substs:
+			labels[label] = labelId
+			labelId += 1
+
+		first_final = min(map(lambda x: x.id, self.accepts))
+		token_list = []
+		token_offset = [0]
+		token_length = [0]
+		target_list = [0, 0]
+		target_offset = [0]
+
+		print "first_final = %d" % first_final
+		while len(outqueue) > 0:
+			state = outqueue.popleft()
+			onClose = 0
+			nTokens = 0
+			t_list = []
+			token_offset.append(len(token_list))
+			transitions = state.transitions
+			for label, targets in transitions.iteritems():
+				target = reduce(lambda x, y: x if y is None else y, targets)
+				if label.startswith('/'):
+					onClose = target.id
+				else:
+					token_list.append(labels[label])
+					nTokens += 1
+					t_list.append(target.id)
+			target_offset.append(len(target_list))
+			target_list.append(onClose)
+			target_list.extend(t_list)
+			target_list.append(0)		# default transition
+			token_length.append(len(t_list))
+
+		print "token_list := %s\n" % str(token_list)
+		print "token_offset := %s\n" % str(token_offset)
+		print "token_length := %s\n" % str(token_length)
+		print "target_list := %s\n" % str(target_list)
+		print "target_offset := %s\n" % str(target_offset)
+		for index, token in dict(zip(labels.values(), labels.keys())).iteritems():
+			print "{0, %s}" % token
+
 	def dump(self):
 		visited = set([self.entry])
 		queue = deque([self.entry])

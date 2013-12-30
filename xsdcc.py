@@ -244,4 +244,4 @@ cc.subgraphs.update({
 nfa = cc.createContentModel(cc.Decls[1]["{http://www.opengis.net/se}LineSymbolizer"], [], [])
 nfa.dump()
 dfa = nfa.determinize().minimize().dump()
-#dfa.dump2()
+dfa.dump2()
