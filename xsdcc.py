@@ -150,6 +150,10 @@ class XSCompiler:
 				return XMLFsm.particle(XMLFsm.element(name, content), minOccurs, maxOccurs);
 				break
 
+			if case("simpleType"):
+				return XMLFsm.empty()
+				break
+
 			if case("complexType"):
 				content = None
 				if node.children is not None:
