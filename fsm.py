@@ -1,3 +1,4 @@
+# coding=UTF-8
 from collections import deque, Iterable, defaultdict
 import copy
 
