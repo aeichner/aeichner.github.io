@@ -264,13 +264,13 @@ class Fsm:
 			for pq in unmarked:
 				p = states[pq[0]]
 				q = states[pq[1]]
-				if len(p.transitions) < len(q.transitions): p, q = q, p
+				if len(p.transitions) < len(q.transitions):	p, q = q, p
 				mark = False
 				for label, targets in p.transitions.iteritems():
 					ptarget = states.index(reduce(lambda x, y: y if x is None else x, targets))
 					if q.transitions.has_key(label):
-						qtarget = states.index(reduce(lambda x, y: y if x is None else x, targets))
-						if ([p, q] in marked) or ([q, p] in marked):
+						qtarget = states.index(reduce(lambda x, y: y if x is None else x, q.transitions[label]))
+						if ([ptarget, qtarget] in marked) or ([qtarget, ptarget] in marked):
 							mark = True
 							break
 					else:
