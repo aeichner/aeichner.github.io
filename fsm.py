@@ -250,7 +250,6 @@ class Fsm:
 		unmarked = []
 		states = self.reachables()
 		F = [states.index(x) for x in [x for x in states if x in self.accepts]]
-		print "number states: %d" % len(states)
 		for p in range(0, len(states) - 1):
 			for q in range(p + 1, len(states)):
 				if (p in F) != (q in F):
@@ -260,7 +259,6 @@ class Fsm:
 		oldlength = -1
 		while len(unmarked) != oldlength:
 			oldlength = len(unmarked)
-			print "Length of unmarked: %d" % oldlength
 			for pq in unmarked:
 				p = states[pq[0]]
 				q = states[pq[1]]
@@ -277,7 +275,6 @@ class Fsm:
 						mark = True
 						break
 				if mark:
-#					print "marking [%d, %d]" % (pq[0], pq[1])
 					marked.append(pq)
 					unmarked.remove(pq)
 		merge = []
@@ -285,7 +282,6 @@ class Fsm:
 		for pq in unmarked:
 			inserted = False
 			for l in merge:
-#				print "checking if %d or %d is in set %s" % (pq[0], pq[1], l)
 				if (pq[0] in l) or (pq[1] in l):
 					if pq[0] not in l: l.append(pq[0])
 					if pq[1] not in l: l.append(pq[1])
@@ -293,9 +289,6 @@ class Fsm:
 					break
 			if not inserted:
 				merge.append(pq)
-
-		for l in merge:
-			print "set = %s" % [states[x].id for x in l]
 
 		state2set = dict()
 		set_num = 0
@@ -316,7 +309,6 @@ class Fsm:
 				state2set[i] = set_num
 				set_num += 1
 
-		print "state2set = %s" % state2set
 		sets = []
 		set2states = dict()
 		for i in range(0, set_num):
@@ -324,18 +316,16 @@ class Fsm:
 			sets.append(State())
 
 		for set, state_list in set2states.iteritems():
-#			print "set = %d, states = %s" % (set, states)
 			for state in state_list:
 				for label, targets in states[state].transitions.iteritems():
 					if not sets[set].transitions.has_key(label):
 						target = states.index(reduce(lambda x, y: y if x is None else x, targets))
 						sets[set].setTransition(label, sets[state2set[target]])
-#						print "Setze für Zustand %d und label %s neues Ziel %d" % (set, label, state2set[target])
 		optDFA = Fsm()
 		optDFA.entry = sets[state2set[states.index(self.entry)]]
 		for state in [sets[state2set[states.index(i)]] for i in self.accepts]:
 			optDFA.makeFinal(state)
-#		print "unmarked = %s" % unmarked
+		print "DFA reduced from %d to %d states (%.1f)" % (len(states), len(sets), 100.0 * len(sets) / len(states))
 		return optDFA
 
 class XMLFsm(Fsm):
