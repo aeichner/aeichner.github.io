@@ -31,14 +31,19 @@ class Fsm:
 		self.entry = None
 		self.labels = list()
 		self.accepts = set()
+		self.leftover = []
 
 	def concat(self, fsm):
-		for state in self.accepts: state.setTransition(None, fsm.entry)
+		for state in self.accepts:
+			state.setTransition(None, fsm.entry, self.leftover)
 		self.accepts = fsm.accepts
+		self.leftover = fsm.leftover
 		return self
 
 	def union(self, fsm):
 		entry = State()
+		self.concat(Fsm.empty())
+		fsm.concat(Fsm.empty())
 		entry.setTransition(None, fsm.entry)
 		entry.setTransition(None, self.entry)
 		self.accepts = self.accepts.union(fsm.accepts)
@@ -174,6 +179,7 @@ class Fsm:
 					line += "%s%s" % (", " if idx else " / ", action)
 					idx = True
 			print line
+		print "Actions queued: %s" % str(self.leftover)
 
 	def determinize(self):
 		dfa = Fsm()
@@ -200,10 +206,10 @@ class Fsm:
 					if nfaState.actions.has_key(label):
 						actions[label] = actions[label].union(nfaState.actions[label])
 
-			for nfaState in sets[i]['set']:
-				if not nfaState.transitions.has_key(None): continue
-				for label, targets in transitions.iteritems():
-					actions[label] = actions[label].union(nfaState.actions[None])
+#			for nfaState in sets[i]['set']:
+#				if not nfaState.transitions.has_key(None): continue
+#				for label, targets in transitions.iteritems():
+#					actions[label] = actions[label].union(nfaState.actions[None])
 
 			for label, targets in transitions.iteritems():
 				targets = self.closure(targets)
@@ -228,8 +234,8 @@ class Fsm:
 					sets[new_state.id] = {'dfaState': new_state, 'set': targets}
 					if is_final: dfa.makeFinal(new_state)
 					queue.append(new_state.id)
-				line = ""
-				for action in actions[label]: line += ", %d" % action
+#				line = ""
+#				for action in actions[label]: line += ", %d" % action
 #				print "  adding transition for label %s to state %d with actions (%s)" % (label, new_state.id, line)
 				sets[i]['dfaState'].setTransition(label, new_state, actions[label])
 		return dfa
@@ -240,29 +246,64 @@ class XMLFsm(Fsm):
 		pass
 
 	@staticmethod
+	def empty():
+		fsm = Fsm.empty()
+		fsm.__class__ = XMLFsm
+		return fsm
+
+	def determinize(self):
+		fsm = Fsm.determinize(self)
+		fsm.__class__ = XMLFsm
+		return fsm
+
+	def apply(self, ea = list(), la = list()):
+		print "Apply ea = %s, la = %s" % (ea, la)
+		fsm = self #.determinize()
+		for label, targets in fsm.entry.transitions.iteritems():
+			for target in targets:
+				fsm.entry.setTransition(label, target, ea)
+		fsm.leftover.extend(la)
+		fsm.dump()
+		return fsm
+
+	@staticmethod
 	def sequence(fsms, ea = list(), la = list()):
+		fsms[0] = fsms[0].determinize()
+		for label, targets in fsms[0].entry.transitions.iteritems():
+			for target in targets:
+				fsms[0].entry.setTransition(label, target, ea)
+
 		fsm = XMLFsm()
 		fsm.entry = State()
 		fsm.makeFinal(fsm.entry)
 		fsms.reverse()
 		for idx, machine in enumerate(fsms):
 			for accept in machine.accepts:
-				accept.setTransition(None, fsm.entry, la if idx == 0 else set())
+				accept.setTransition(None, fsm.entry, machine.leftover)
 			fsm.entry = machine.entry
 		entry = State()
-		entry.setTransition(None, fsm.entry, ea)
+		entry.setTransition(None, fsm.entry)
 		fsm.entry = entry
+		fsm.leftover = la
 		return fsm
 
 	@staticmethod
 	def choice(fsms, ea = list(), la = list()):
+		for idx, fsm in enumerate(fsms):
+			fsms[idx] = fsm.determinize()
+			for label, targets in fsms[idx].entry.transitions.iteritems():
+				for target in targets:
+					fsms[idx].entry.setTransition(label, target, ea)
 		fsm = XMLFsm()
 		fsm.entry = State()
 		leave = State()
 		for machine in fsms:
-			fsm.entry.setTransition(None, machine.entry, ea)
-			for accept in machine.accepts: accept.setTransition(None, leave, la)
+			fsm.entry.setTransition(None, machine.entry)
+			for accept in machine.accepts:
+				machine.leftover.extend(la)
+				accept.setTransition(None, leave, machine.leftover)
 		fsm.makeFinal(leave)
+#		fsm.leftover = la
 		return fsm
 
 	@staticmethod
@@ -271,8 +312,11 @@ class XMLFsm(Fsm):
 		fsm.entry = State()
 		fsm.entry.setTransition(name, content.entry, ea)
 		leave = State()
-		for state in content.accepts: state.setTransition("/" + name, leave, la)
+		for state in content.accepts:
+			content.leftover.extend(la)
+			state.setTransition("/" + name, leave, content.leftover)
 		fsm.makeFinal(leave)
+#		fsm.leftover = la
 		return fsm
 
 	@staticmethod
@@ -306,16 +350,17 @@ class XMLFsm(Fsm):
 				b.concat(a)
 			return b
 		return a
-"""
-fsm = XMLFsm.choice([
-	XMLFsm.element("Foo", XMLFsm.empty(), [1, 2], [7]),
-	XMLFsm.element("Bar", XMLFsm.empty(), [2, 3], [6]),
-	XMLFsm.element("Baz", XMLFsm.empty(), [3, 4], [5])
-	], [8], [9])
-#fsm = XMLFsm.element("Baz", XMLFsm.empty(), [1], [2])
-fsm.dump()
-fsm = XMLFsm.particle(fsm, 0, "unbounded")
-fsm.dump()
-dfa = fsm.determinize()
-dfa.dump()
-"""
+
+if __name__ == "__main__":
+	fsm = XMLFsm.element("Bar",
+		    XMLFsm.choice([
+			  XMLFsm.element("Baz", XMLFsm.empty(), ["Baz_in"], ["Baz_out"]),
+			  XMLFsm.element("Foo", XMLFsm.empty(), ["Foo_in"], ["Foo_out"])
+		    ], ["choice_in"], ["choice_out"]),
+		  ["Bar_in"], ["Bar_out"])
+#	fsm = XMLFsm.element("Baz", XMLFsm.empty(), ["Baz_in"], ["Baz_out"])
+#	fsm.dump()
+	fsm = XMLFsm.particle(fsm, 1, "unbounded")
+	fsm.dump()
+	dfa = fsm.determinize()
+	dfa.dump()

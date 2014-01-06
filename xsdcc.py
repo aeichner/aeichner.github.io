@@ -91,6 +91,11 @@ class XSCompiler:
 
 	def targetNamespace(self, node):
 		return node.get_doc().getRootElement().prop("targetNamespace")
+	
+	@staticmethod
+	def getActions(s):
+		if s is None: return []
+		return [x for x in s.split(" ")]
 
 	def createContentModel(self, node, _stack = list()):
 		name = node.prop("name")
@@ -99,7 +104,9 @@ class XSCompiler:
 		maxOccurs = node.prop("maxOccurs")
 		maxOccurs = 1 if maxOccurs is None else (maxOccurs if maxOccurs == "unbounded" else int(maxOccurs))
 		fsm = None
-		print "%s: '%s' (%s, %s) [%d]" % (node.name, name, minOccurs, maxOccurs, len(_stack))
+		ea = self.getActions(node.prop("enter"))
+		la = self.getActions(node.prop("leave"))
+		print "%s: '%s' (%s, %s) [%d] / %s | %s" % (node.name, name, minOccurs, maxOccurs, len(_stack), ea, la)
 		if _stack.count(node) > 0:
 			print "*** recursion detected ***"
 			return XMLFsm.empty()
@@ -147,7 +154,7 @@ class XSCompiler:
 							content = self.createContentModel(child, stack)
 							break
 				if content is None: content = XMLFsm.empty()
-				return XMLFsm.particle(XMLFsm.element(name, content), minOccurs, maxOccurs);
+				return XMLFsm.particle(XMLFsm.element(name, content, ea, la), minOccurs, maxOccurs);
 				break
 
 			if case("simpleType"):
@@ -161,7 +168,7 @@ class XSCompiler:
 						if child.name in ("simpleContent", "complexContent", "group", "choice", "sequence", "all"):
 							content = self.createContentModel(child, stack)
 							break
-				return XMLFsm.empty() if content is None else XMLFsm.particle(content, minOccurs, maxOccurs)
+				return XMLFsm.empty() if content is None else XMLFsm.particle(content.apply(ea, la), minOccurs, maxOccurs)
 				break
 
 			if case("sequence", "choice"):
@@ -174,7 +181,7 @@ class XSCompiler:
 					content = XMLFsm.empty()
 				else:
 					content = XMLFsm.sequence(content) if node.name == "sequence" else XMLFsm.choice(content)
-				return XMLFsm.particle(content, minOccurs, maxOccurs)
+				return XMLFsm.particle(content.apply(ea, la), minOccurs, maxOccurs)
 				break
 
 			if case("complexContent"):
@@ -223,7 +230,6 @@ cc.subgraphs.update({
 	"{http://www.opengis.net/gml}_Geometry": None
 })
 nfa = cc.createContentModel(cc.Decls[1]["{http://www.opengis.net/se}LineSymbolizer"])
-#nfa.dump()
-dfa = nfa.determinize()
-dfa.dump()
-dfa.dump2()
+nfa.dump()
+dfa = nfa.determinize().dump()
+#dfa.dump2()
