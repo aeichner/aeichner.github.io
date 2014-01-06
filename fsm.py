@@ -240,6 +240,100 @@ class Fsm:
 				sets[i]['dfaState'].setTransition(label, new_state, actions[label])
 		return dfa
 
+	def reachables(self):
+		states = []
+		queue = deque([self.entry])
+		while len(queue) > 0:
+			state = queue.popleft()
+			states.append(state)
+			for label, targets in state.transitions.iteritems():
+				for target in targets:
+					if (target not in states) and (target not in queue): queue.append(target)
+		return states
+
+	def minimize(self):
+		marked = []
+		unmarked = []
+		states = self.reachables()
+		F = [states.index(x) for x in [x for x in states if x in self.accepts]]
+		for p in range(0, len(states) - 1):
+			for q in range(p + 1, len(states)):
+				if (p in F) != (q in F):
+					marked.append([p, q])
+				else:
+					unmarked.append([p, q])
+		oldlength = -1
+		while len(unmarked) != oldlength:
+			oldlength = len(unmarked)
+			for pq in unmarked:
+				p = states[pq[0]]
+				q = states[pq[1]]
+				if len(p.transitions) < len(q.transitions):	p, q = q, p
+				mark = False
+				for label, targets in p.transitions.iteritems():
+					ptarget = states.index(reduce(lambda x, y: y if x is None else x, targets))
+					if q.transitions.has_key(label):
+						qtarget = states.index(reduce(lambda x, y: y if x is None else x, q.transitions[label]))
+						if ([ptarget, qtarget] in marked) or ([qtarget, ptarget] in marked):
+							mark = True
+							break
+					else:
+						mark = True
+						break
+				if mark:
+					marked.append(pq)
+					unmarked.remove(pq)
+		merge = []
+
+		for pq in unmarked:
+			inserted = False
+			for l in merge:
+				if (pq[0] in l) or (pq[1] in l):
+					if pq[0] not in l: l.append(pq[0])
+					if pq[1] not in l: l.append(pq[1])
+					inserted = True
+					break
+			if not inserted:
+				merge.append(pq)
+
+		state2set = dict()
+		set_num = 0
+		for pq in unmarked:
+			pe = state2set.has_key(pq[0])
+			qe = state2set.has_key(pq[1])
+			if pe and not qe:
+				state2set[pq[1]] = state2set[pq[0]]
+			elif not pe and qe:
+				state2set[pq[0]] = state2set[pq[1]]
+			elif not pe and not qe:
+				state2set[pq[0]] = set_num
+				state2set[pq[1]] = set_num
+				set_num += 1
+
+		for i in range(0, len(states)):
+			if not state2set.has_key(i):
+				state2set[i] = set_num
+				set_num += 1
+
+		sets = []
+		set2states = dict()
+		for i in range(0, set_num):
+			set2states[i] = [k for k, v in state2set.items() if v == i]
+			sets.append(State())
+
+		for set, state_list in set2states.iteritems():
+			for state in state_list:
+				for label, targets in states[state].transitions.iteritems():
+					if not sets[set].transitions.has_key(label):
+						target = states.index(reduce(lambda x, y: y if x is None else x, targets))
+						sets[set].setTransition(label, sets[state2set[target]])
+		optDFA = Fsm()
+		optDFA.entry = sets[state2set[states.index(self.entry)]]
+		for state in [sets[state2set[states.index(i)]] for i in self.accepts]:
+			optDFA.makeFinal(state)
+		print "DFA reduced from %d to %d states (%.1f)" % (len(states), len(sets), 100.0 * len(sets) / len(states))
+		return optDFA
+
 class XMLFsm(Fsm):
 	def __init__(self):
 		Fsm.__init__(self)
