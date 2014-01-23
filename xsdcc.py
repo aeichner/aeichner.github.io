@@ -149,10 +149,12 @@ class XSCompiler:
 					if self.Decls[2][typename] is not None:
 						content = self.createContentModel(self.Decls[2][typename], ea, la, stack)
 				else:
-					for child in node.children:
+					child = node.children
+					while child is not None:
 						if child.name in ("simpleType", "complexType"):
 							content = self.createContentModel(child, ea, la, stack)
 							break
+						child = child.next
 				if content is None: content = XMLFsm().empty()
 				return XMLFsm().element(name, content).apply(ea, la).particle(minOccurs, maxOccurs)
 				break
@@ -163,21 +165,23 @@ class XSCompiler:
 
 			if case("complexType"):
 				content = None
-				if node.children is not None:
-					for child in node.children:
-						if child.name in ("simpleContent", "complexContent", "group", "choice", "sequence", "all"):
-							content = self.createContentModel(child, [], [], stack)
-							break
+				child = node.children
+				while child is not None:
+					if child.name in ("simpleContent", "complexContent", "group", "choice", "sequence", "all"):
+						content = self.createContentModel(child, [], [], stack)
+						break
+					child = child.next
 				content = XMLFsm().empty() if content is None else content
 				return content
 				break
 
 			if case("sequence", "choice"):
 				content = []
-				if node.children is not None:
-					for child in node.children:
-						if child.name in ("element", "group", "choice", "sequence", "any"):
-							content.append(self.createContentModel(child, [], [], stack))
+				child = node.children
+				while child is not None:
+					if child.name in ("element", "group", "choice", "sequence", "any"):
+						content.append(self.createContentModel(child, [], [], stack))
+					child = child.next
 				if len(content) == 0:
 					content = XMLFsm().empty()
 				else:
@@ -187,11 +191,12 @@ class XSCompiler:
 
 			if case("complexContent"):
 				content = None
-				if node.children is not None:
-					for child in node.children:
-						if child.name in ("extension", "restriction"):
-							content = self.createContentModel(child, [], [], stack)
-							break
+				child = node.children
+				while child is not None:
+					if child.name in ("extension", "restriction"):
+						content = self.createContentModel(child, [], [], stack)
+						break
+					child = child.next
 				return XMLFsm().empty() if content is None else content
 				break
 
@@ -203,11 +208,12 @@ class XSCompiler:
 				else:
 					baseContent = XMLFsm().empty()
 				content = None
-				if node.children is not None:
-					for child in node.children:
-						if child.name in ("group", "choice", "sequence"):
-							content = self.createContentModel(child, [], [], stack)
-							break
+				child = node.children
+				while child is not None:
+					if child.name in ("group", "choice", "sequence"):
+						content = self.createContentModel(child, [], [], stack)
+						break
+					child = child.next
 				if content is None:
 					fsm = baseContent
 				else:
