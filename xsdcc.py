@@ -227,7 +227,7 @@ class XSCompiler:
 				break
 
 			if case("any"):
-				return XMLFsm().element("*", XMLFsm.empty()).particle(minOccurs, maxOccurs)
+				return XMLFsm().element("*", XMLFsm().empty()).particle(minOccurs, maxOccurs)
 				break
 
 			if case():
