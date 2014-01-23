@@ -106,7 +106,7 @@ class XSCompiler:
 		fsm = None
 		ea.extend(self.getActions(node.prop("enter")))
 		la[:0] = self.getActions(node.prop("leave"))
-		print "%s: '%s' (%s, %s) [%d] / %s | %s" % (node.name, name, minOccurs, maxOccurs, len(_stack), ea, la)
+		print "%s%s: '%s' (%s, %s) %s | %s" % (len(_stack)* "  ", node.name, name, minOccurs, maxOccurs, ea, la)
 		if _stack.count(node) > 0:
 			print "*** recursion detected ***"
 			return XMLFsm().empty()
