@@ -242,6 +242,7 @@ cc.subgraphs.update({
 	"{http://www.opengis.net/gml}_Geometry": None
 })
 nfa = cc.createContentModel(cc.Decls[1]["{http://www.opengis.net/se}LineSymbolizer"], [], [])
-nfa.dump()
-dfa = nfa.determinize().minimize().dump()
+#nfa.dump()
+dfa = nfa.determinize().minimize()
+dfa.dump()
 dfa.dump2()

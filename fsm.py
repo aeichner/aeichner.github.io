@@ -200,7 +200,7 @@ class XMLFsm(object):
 				id += 1
 				outqueue.append(state)
 
-			transitions = state.transitions
+			transitions = dict((trans.label, state.statesForLabel(trans.label)) for trans in state.transitions)
 			for label, targets in transitions.iteritems():
 				if not (label.startswith("/") or label.startswith('!')) and label not in labels:
 					labels[label] = labelId
@@ -233,7 +233,7 @@ class XMLFsm(object):
 			nTokens = 0
 			t_list = []
 			token_offset.append(len(token_list))
-			transitions = state.transitions
+			transitions = dict((trans.label, state.statesForLabel(trans.label)) for trans in state.transitions)
 			for label, targets in transitions.iteritems():
 				target = reduce(lambda x, y: x if y is None else y, targets)
 				if label.startswith('/'):
