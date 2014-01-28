@@ -50,6 +50,7 @@ class XSCompiler:
 		self.namespaces = []
 		self.elements = [("/")]
 		self.actions = []
+		self.macros = [ ("enter", 0, self.onEnter), ("leave", 0, self.onLeave) ]
 
 	def expandQName(self, node, qname):
 		prefix, localname = qname.split(":")
@@ -110,20 +111,50 @@ class XSCompiler:
 			self.elements.append(element)
 		return elementId
 	
+	def getActionId(self, action):
+		try:
+			actionId = self.actions.index(action)
+		except ValueError:
+			actionId = len(self.actions)
+			self.actions.append(action)
+		return actionId
+
+	def mapActions(self, actionStrings):
+		return map(self.getActionId, actionStrings)
+		
 	def getActions(self, s):
 		if s is None: return []
 		l = []
 		for i in re.finditer(r"\s*(\w+)\s*\(\s*((\w+\s*(,\s*\w+)*)?\s*)\)", s):
 			args = "_".join([a.group(1).replace("_", "__") for a in re.finditer(r",?\s*(\w+)", i.group(2))])
 			action = "%s%s%s" % (i.group(1).replace("_", "__"), "_" if len(args) > 0 else "", args)
-			try:
-				actionId = self.actions.index(action)
-			except ValueError:
-				actionId = len(self.actions)
-				self.actions.append(action)
+			actionId = self.getActionId(action)
 			l.append(actionId)
 #		print "Action IN: %s | OUT: %s" % (s, l)
 		return l
+
+	@staticmethod
+	def onEnter(self, action, ea, la):
+		l = self.getActions(action)
+		ea.extend(l)
+
+	@staticmethod
+	def onLeave(self, action, ea, la):
+		l = self.getActions(action)
+		la[:0] = l
+
+	def addMacro(self, macro):
+		for i in range(0, len(self.macros)):
+			if self.macros[i][1] >= macro[1]: break
+		print "Inserting macro %s with prio %d at %d" % (macro[0], macro[1], i)
+		self.macros[i:i] = [macro]
+		print self.macros
+
+	def processActions(self, node, ea, la):
+		for macro in self.macros:
+			action = node.prop(macro[0])
+			if not action: continue
+			macro[2](self, action, ea, la)
 
 	def element(self, namespace, localname, content):
 		elementId = self.getElementId(namespace, localname)
@@ -246,8 +277,9 @@ class XSCompiler:
 		maxOccurs = node.prop("maxOccurs")
 		maxOccurs = 1 if maxOccurs is None else (maxOccurs if maxOccurs == "unbounded" else int(maxOccurs))
 		fsm = None
-		ea.extend(self.getActions(node.prop("enter")))
-		la[:0] = self.getActions(node.prop("leave"))
+#		ea.extend(self.getActions(node.prop("enter")))
+#		la[:0] = self.getActions(node.prop("leave"))
+		self.processActions(node, ea, la)
 		print "%s%s: '%s' (%s, %s) %s | %s" % (len(_stack)* "  ", node.name, name, minOccurs, maxOccurs, [self.actions[e] for e in ea], [self.actions[a] for a in la])
 		if _stack.count(node) > 0:
 			print "*** recursion detected ***"
@@ -371,8 +403,13 @@ class XSCompiler:
 				raise BaseException("Unknown schema object: %s" % node.name)
 		return fsm
 
+def createObject(xsc, str, ea, la):
+	ea.extend(xsc.mapActions(["push_ctx", "mkctxt_" + str]))
+	la[:0] = xsc.mapActions(["pop_ctx"])
+
 if __name__ == "__main__":
 	cc = XSCompiler()
+	cc.addMacro(("object", -1, createObject))
 	cc.loadSchema(os.path.normpath(sys.argv[1]))
 	cc.subgraphs.update({
 		"{http://www.opengis.net/ogc}expression": None,
