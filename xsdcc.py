@@ -45,7 +45,8 @@ class XSCompiler:
 			"{http://www.w3.org/2001/XMLSchema}dateTime": None,
 			"{http://www.w3.org/2001/XMLSchema}unsignedLong": None,
 			"{http://www.w3.org/2001/XMLSchema}token": None,
-			"{http://www.w3.org/2001/XMLSchema}normalizedString": None
+			"{http://www.w3.org/2001/XMLSchema}normalizedString": None,
+			"{http://www.w3.org/2001/XMLSchema}QName": None
 		}
 		self.namespaces = []
 		self.elements = [("/")]
@@ -53,10 +54,16 @@ class XSCompiler:
 		self.macros = [ ("enter", 0, self.onEnter), ("leave", 0, self.onLeave) ]
 
 	def expandQName(self, node, qname):
-		prefix, localname = qname.split(":")
-		if localname is None:
-			prefix, localname = localname, prefix
-		return "{%s}%s" % (node.searchNs(node.get_doc(), prefix).content, localname)
+		try:
+			prefix, localname = qname.split(":")
+		except ValueError:
+			localname = qname
+			prefix = None
+		try:
+			namespace = node.searchNs(node.get_doc(), prefix).content
+		except:
+			namespace = ""
+		return "{%s}%s" % (namespace, localname)
 
 	def importDef(self, node, targetNamespace):
 		qname = "{%s}%s" % (targetNamespace, node.prop("name"))
@@ -87,6 +94,7 @@ class XSCompiler:
 
 		if targetNamespace is None:
 			targetNamespace = root.prop("targetNamespace")
+			if targetNamespace is None: targetNamespace = ""
 
 		result = xpath.xpathEval("/*[local-name()='schema']/*")
 		for node in result:
@@ -238,6 +246,67 @@ class XSCompiler:
 		for index, token in dict(zip(labels.values(), labels.keys())).iteritems():
 			print "{0, %s}" % token
 
+	def genTables(self, dfa):
+		all_states = dfa.reachables()
+		states = [s for s in all_states if s not in dfa.accepts]
+		states.extend([s for s in all_states if s in dfa.accepts])
+		states[:0] = [State()]
+		targets = []
+		target_offsets = []
+		tokens = []
+		token_offsets = []
+		token_lengths = []
+		actions = []
+		action_offsets = []
+		for i, state in enumerate(states):
+			token_offsets.append(len(tokens))
+			target_offsets.append(len(targets))
+			on_close = None
+			local_targets = []
+			local_actions = []
+			local_actions_on_close = None
+			for trans in state.transitions:
+#				print "state %d: Token: %d -> target %d" % (i, trans.label, states.index(trans.target))
+				if trans.label > 0:
+					local_targets.append(states.index(trans.target))
+					tokens.append(trans.label - 1)
+					local_actions.append(trans.actions)
+				else:
+					on_close = states.index(trans.target)
+					local_actions_on_close = trans.actions
+
+			local_actions.append([])
+			local_actions[:0] = [[] if local_actions_on_close is None else local_actions_on_close]
+			for tactions in local_actions:
+				action_offsets.append(len(actions))
+				actions.append(len(tactions))	# length
+				actions.extend(tactions)		# actions
+
+			token_lengths.append(len(tokens) - token_offsets[-1])
+			local_targets[:0] = [0 if on_close is None else on_close]
+			local_targets.append(0)
+			targets.extend(local_targets)
+
+		print "const char * t_namespaces[] = {\n%s\n};\n" % ",\n".join(map(lambda e: "\"%s\"" % (e if e is not None else ""), self.namespaces))
+		print "const element_t t_elements[] = {\n%s\n};\n" % ",\n".join(map(lambda e: "{%d, \"%s\"}" % e, self.elements[1:]))
+		print "const xml_schema example_schema = {"
+		print "\t\tnamespaces: t_namespaces,"
+		print "\t\telements: t_elements,"
+		print "\t\ttoken_names: {\n\t\t\t(const uint8_t*)((const uint8_t[]){%s})," % ", ".join(map(lambda n: "%d" % n, tokens))
+		print "\t\t\t(const uint8_t*)((const uint8_t[]){%s})," % ", ".join(map(lambda n: "%d" % n, token_offsets))
+		print "\t\t\t(const uint8_t*)((const uint8_t[]){%s})\n\t\t}," % ", ".join(map(lambda n: "%d" % n, token_lengths))
+		print "\t\ttargets: {"
+		print "\t\t\t(const uint8_t*)((const uint8_t[]){%s})," % ", ".join(map(lambda n: "%d" % n, targets))
+		print "\t\t\t(const uint8_t*)((const uint8_t[]){%s})\n\t\t}," % ", ".join(map(lambda n: "%d" % n, target_offsets))
+		print "\t\tfirst_final: %d," % min(map(lambda s: states.index(s), dfa.accepts))
+		print "\t\tentry: %d," % states.index(dfa.entry)
+		print "\tdispatch: dispatch"
+		print "\t};"
+		print "static const uint8_t action_list[] = {%s};" % ", ".join(map(lambda n: "%d" % n, actions))
+		print "static const uint16_t action_offsets[] = {%s};" % ", ".join(map(lambda n: "%d" % n, action_offsets))
+		print "enum {%s\n};" % ", ".join(map(lambda n: "\n\t%s" % n, self.actions))
+		print "static const char * action_names[] = {\n%s\n};" % ",\n".join(map(lambda n: "\"%s\"" % n, self.actions))
+
 	def dump(self, nfa):
 		visited = set([nfa.entry])
 		queue = deque([nfa.entry])
@@ -277,8 +346,6 @@ class XSCompiler:
 		maxOccurs = node.prop("maxOccurs")
 		maxOccurs = 1 if maxOccurs is None else (maxOccurs if maxOccurs == "unbounded" else int(maxOccurs))
 		fsm = None
-#		ea.extend(self.getActions(node.prop("enter")))
-#		la[:0] = self.getActions(node.prop("leave"))
 		self.processActions(node, ea, la)
 		print "%s%s: '%s' (%s, %s) %s | %s" % (len(_stack)* "  ", node.name, name, minOccurs, maxOccurs, [self.actions[e] for e in ea], [self.actions[a] for a in la])
 		if _stack.count(node) > 0:
@@ -333,7 +400,7 @@ class XSCompiler:
 				return self.element(self.targetNamespace(node), name, content).apply(ea, la).particle(minOccurs, maxOccurs)
 				break
 
-			if case("simpleType"):
+			if case("simpleType", "simpleContent"):
 				return XMLFsm().empty()
 				break
 
@@ -396,8 +463,29 @@ class XSCompiler:
 				break
 
 			if case("any"):
-				return self.element(self.targetNamespace(node), "*", XMLFsm().empty()).particle(minOccurs, maxOccurs)
+				fsm = XMLFsm()
+				fsm.entry = State()
+				leave = State()
+				fsm.entry.addTransition(self.getElementId(self.targetNamespace(node), "*"), leave)
+				fsm.accepts.add(leave)
+				return fsm.particle(minOccurs, maxOccurs)
 				break
+
+			if case("group"):
+				if node.prop("ref") is not None:
+					ref = self.Decls[1][self.expandQName(node, node.prop("ref"))]
+					if ref is None: raise BaseException("Referenced group not known: %s" % node.prop("ref"))
+					return self.createContentModel(ref, [], [], stack).apply(ea, la).particle(minOccurs, maxOccurs)
+
+				content = None
+				child = node.children
+				while child is not None:
+					if child.name in ("all", "choice", "sequence"):
+						content = self.createContentModel(child, [], [], stack)
+						break
+					child = child.next
+
+				return XMLFsm().empty if content is None else content.apply(ea, la).particle(minOccurs, maxOccurs)
 
 			if case():
 				raise BaseException("Unknown schema object: %s" % node.name)
@@ -414,12 +502,14 @@ if __name__ == "__main__":
 	cc.subgraphs.update({
 		"{http://www.opengis.net/ogc}expression": None,
 		"{http://www.opengis.net/se}Graphic": None,
-	#	"{http://www.opengis.net/se}LineSymbolizer": None,
-	#	"{http://www.opengis.net/se}PolygonSymbolizer": None,
-		"{http://www.opengis.net/gml}_Geometry": None
+		"{http://www.opengis.net/ogc}Filter": None,
+		"{http://www.opengis.net/se}Symbolizer": None,
+		"{http://www.opengis.net/gml}_Geometry": None,
+		"{http://www.opengis.net/gml}FeatureCollection": None
 	})
 	nfa = cc.createContentModel(cc.Decls[1]["{http://www.opengis.net/se}LineSymbolizer"], [], [])
 	#nfa.dump()
 	dfa = nfa.determinize().minimize()
 	cc.dump(dfa)
+	cc.genTables(dfa)
 	#dfa.dump2()
